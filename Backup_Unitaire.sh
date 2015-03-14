@@ -20,94 +20,160 @@
 # with this program.  If not, see <http://www.gnu.org/licenses/>.
 # ################################################################################
 
-HOST="-h localhost"
-BDD="gestion_backups_secondaires"
-USER="-u user_gestion_bac"
-PASSWD="-puser_gestion_backup_password"
-SRC="/home/Backup2/SQL/"
+HOST=$(< ./param-host.txt)
+BDD=$(< ./param-base_donnee.txt)
+USER=$(< ./param-user.txt)
+PASSWD=$(< ./param-password.txt)
+SRC=$(< ./param-source.txt)
+
+NUMPROG=3
+LOG="$SRC""Log.sh"
+
+UUID=$(cat /proc/sys/kernel/random/uuid | sed -e "s/-//g")
+
+bash $LOG $UUID $NUMPROG 1 "Date : $(date), Lancement du programme de backup unitaire, Nombre d aguments :
 
 if [
 
     echo "Pas assez d'arguments" 1>&2
+    bash $LOG $UUID $NUMPROG 2 "Pas assez d'arguments"
 	exit 1
 fi
 
 if [ "$1" != "file" -a "$1" != "ftp" ]; then
 
     echo "Premier argument incorecte" 1>&2
+    bash $LOG $UUID $NUMPROG 2 "Premier argument incorecte"
 	exit 2
 fi
 
 if [ "$3" != "ftp" ]; then
 
     echo "Deuxieme argument incorecte" 1>&2
+    bash $LOG $UUID $NUMPROG 2 "Deuxieme argument incorecte"
 	exit 3
 fi
 
 FICHIERVERROU="/tmp/verrou_unitaire"
+FICHIERVERROUERR=$FICHIERVERROU"_error"
 if [ -f $FICHIERVERROU ]; then
     echo "Un programme est deja lancé"
+    bash $LOG $UUID $NUMPROG 1 "Un programme est deja lance"
 	exit 0
 fi
 
-echo "Verrou" > $FICHIERVERROU
-
-echo "Lancement backup unitaire : "$(date)
+echo "" > "$FICHIERVERROU"
+echo "" > "$FICHIERVERROUERR"
 
 TEMPFILE="/tmp/nom_fichier_temp"
 
-if [ -f $TEMPFILE ]; then
-    rm $TEMPFILE
+if [ -f "$TEMPFILE" ]; then
+    rm "$TEMPFILE" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+    bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 fi
 
-mysql $HOST $USER $PASSWD -e "SELECT fichier FROM liste_fichiers WHERE dossier = '"$2"' AND IFNULL(date_modification>=date_envoi,TRUE) LIMIT 1" -D $BDD > $TEMPFILE
+mysql $HOST $USER $PASSWD -e "SELECT fichier FROM liste_fichiers WHERE dossier = '"$2"' AND IFNULL(date_modification>=date_envoi,TRUE) ORDER BY date_modification ASC LIMIT 1" -D $BDD > $TEMPFILE  2> "$FICHIERVERROUERR"
+bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 
 NOMFICHIER="$(tail -n 1 $TEMPFILE)"
 
 if [ -z "$NOMFICHIER" ]; then
-	echo "Aucun fichier a traiter"
+
+	bash $LOG $UUID $NUMPROG 1 "Aucun fichier a traiter"
 	exit 10
 fi
 
-echo "Nom du fichier qui va être traité : "$NOMFICHIER
+bash $LOG $UUID $NUMPROG 1 "Nom du fichier qui va être traité : $NOMFICHIER"
 
 if [ $1 == "ftp" ]; then
-    echo "Copie locale"
+
+    bash $LOG $UUID $NUMPROG 1 "Copie locale"
 
 	if [ -f "/tmp/$NOMFICHIER" ]; then
-    	rm "/tmp/$NOMFICHIER"
+    	rm "/tmp/$NOMFICHIER" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+    	bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    	bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 	fi
 
-	wget -nv -P "/tmp/" "$2""$NOMFICHIER"
+	wget -nv -P "/tmp/" "$2""$NOMFICHIER" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+	RES=$?
+    bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+
+	if [ $RES -ne "0" ]; then
+
+		bash $LOG $UUID $NUMPROG 1 "Echec du rapatriment, fin du programme"
+	    rm "$TEMPFILE" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+    	bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    	bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+	    rm "/tmp/$NOMFICHIER" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+    	bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    	bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+	    rm "$FICHIERVERROU"
+		rm "$FICHIERVERROUERR"
+	    exit 4
+	fi
+
+	bash $LOG $UUID $NUMPROG 1 "Rapatriment reussi"
 
 fi
 
 if [ $3 == "ftp" ]; then
-	echo "Envoi"
+
+	bash $LOG $UUID $NUMPROG 1 "Envoi"
 
 	if [ $1 == "ftp" ]; then
-		wput -nv "/tmp/$NOMFICHIER" "$4""$NOMFICHIER"
+		wput -nv "/tmp/$NOMFICHIER" "$4""$NOMFICHIER" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+		RES=$?
+    	bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    	bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 	fi
 
 	if [ $1 == "file" ]; then
-		wput -nv "$2""$NOMFICHIER" "$4""$NOMFICHIER"
+		wput -nv "$2""$NOMFICHIER" "$4""$NOMFICHIER" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+		RES=$?
+    	bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    	bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 	fi
+
+	if [ $RES -ne "0" ]; then
+
+	    bash $LOG $UUID $NUMPROG 1 "Echec de l'envoie, fin du programme"
+	    rm "$TEMPFILE" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+    	bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    	bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+	    rm "/tmp/$NOMFICHIER" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+    	bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    	bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+	    rm "$FICHIERVERROU"
+		rm "$FICHIERVERROUERR"
+	    exit 4
+	fi
+
+	bash $LOG $UUID $NUMPROG 1 "Envoi reussi"
 
 fi
 
 if [ -f "/tmp/$NOMFICHIER" ]; then
-    rm "/tmp/$NOMFICHIER"
+    rm "/tmp/$NOMFICHIER" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+    bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 
 fi
 
 if [ -f "$TEMPFILE" ]; then
-    rm $TEMPFILE
-	echo
+    rm $TEMPFILE  > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+    bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 fi
 
-mysql $HOST $USER $PASSWD -e "UPDATE liste_fichiers SET date_envoi = NOW() WHERE dossier = '$2' AND fichier = '$NOMFICHIER'" -D $BDD > $TEMPFILE
+mysql $HOST $USER $PASSWD -e "UPDATE liste_fichiers SET date_envoi = NOW() WHERE dossier = '$2' AND fichier = '$NOMFICHIER'" -D $BDD > $TEMPFILE  2> "$FICHIERVERROUERR"
+bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 
-echo "Traitement du fichier '"$NOMFICHIER"' terminé sans erreur"
-echo "- Date "$(date)" - Traitement du fichier '"$NOMFICHIER"' terminé sans erreur" 1>&2
+rm "$FICHIERVERROU"
+rm "$FICHIERVERROUERR"
 
-rm $FICHIERVERROU
+bash $LOG $UUID $NUMPROG 1 "Date : $(date), Fin du programme de backup unitaire"

@@ -20,44 +20,87 @@
 # with this program.  If not, see <http://www.gnu.org/licenses/>.
 # ################################################################################
 
-HOST="-h localhost"
-BDD="gestion_backups_secondaires"
-USER="-u user_gestion_bac"
-PASSWD="-puser_gestion_backup_password"
-SRC="/home/Backup2/SQL/"
+HOST=$(< ./param-host.txt)
+BDD=$(< ./param-base_donnee.txt)
+USER=$(< ./param-user.txt)
+PASSWD=$(< ./param-password.txt)
+SRC=$(< ./param-source.txt)
+
+NUMPROG=1
+LOG="$SRC""Log.sh"
+
+UUID=$(cat /proc/sys/kernel/random/uuid | sed -e "s/-//g")
+
+bash $LOG $UUID $NUMPROG 1 "Date : $(date), Lancement du programme de mise à jour, Nombre d aguments :
 
 if [
 
     echo "Pas assez d'arguments" 1>&2
+    bash $LOG $UUID $NUMPROG 2 "Pas assez d'arguments"
 	exit 1
 fi
 
 if [ "$1" != "file" -a "$1" != "ftp" ]; then
 
     echo "Premier argument incorecte" 1>&2
+    bash $LOG $UUID $NUMPROG 2 "Premier argument incorecte"
 	exit 2
 fi
+
+FICHIERVERROU="/tmp/verrou_MAJ"
+FICHIERVERROUERR=$FICHIERVERROU"_error"
+if [ -f $FICHIERVERROU ]; then
+    echo "Un programme est deja lancé"
+    bash $LOG $UUID $NUMPROG 1 "Un programme est deja lance"
+	exit 0
+fi
+
+echo "" > "$FICHIERVERROU"
+echo "" > "$FICHIERVERROUERR"
 
 TEMPFILE="/tmp/liste_fichiers_temporaire"
 
 if [ -f "$TEMPFILE" ]; then
-    rm "$TEMPFILE"
+    rm "$TEMPFILE" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+    bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+
 fi
 
 if [ "$1" == "file" ]; then
 
-	ls -l $2 | grep "^-" | awk {'print "'"$2"'"","$9" "$10" "$11" "$12" "$13","$6","$7","$8'} > $TEMPFILE
+	ls -l $2 | grep "^-" | awk {'print "'"$2"'"","$9" "$10" "$11" "$12" "$13","$6","$7","$8'} > $TEMPFILE 2> "$FICHIERVERROUERR"
+	bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+
 fi
 
 if [ "$1" == "ftp" ]; then
 
-	lftp "$2" -e "ls -l ; quit" | grep "^-" | awk {'print "'"$2"'"","$9" "$10" "$11" "$12" "$13","$6","$7","$8'} > $TEMPFILE
+	lftp "$2" -e "ls -l ; quit" | grep "^-" | awk {'print "'"$2"'"","$9" "$10" "$11" "$12" "$13","$6","$7","$8'} > $TEMPFILE 2> "$FICHIERVERROUERR"
+	bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+
 fi
 
-mysql $HOST $USER $PASSWD -e "TRUNCATE liste_fichiers_temporaire" -D $BDD
-mysqlimport --delete -L --fields-terminated-by=',' --default-character-set=utf8 $HOST $USER $PASSWD $BDD "$TEMPFILE"
-echo \'source\ "$SRC"Injection des fichiers dans la base.sql\' | xargs mysql $HOST $USER $PASSWD -D $BDD -e
+mysql $HOST $USER $PASSWD -e "TRUNCATE liste_fichiers_temporaire" -D $BDD > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+
+mysqlimport --delete -L --fields-terminated-by=',' --default-character-set=utf8 $HOST $USER $PASSWD $BDD "$TEMPFILE" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+
+echo \'source\ "$SRC"SQL/Injection des fichiers dans la base.sql\' | xargs mysql $HOST $USER $PASSWD -D $BDD -e > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 
 if [ -f "$TEMPFILE" ]; then
-    rm "$TEMPFILE"
+    rm "$TEMPFILE"  > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+    bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+
 fi
+
+rm "$FICHIERVERROU"
+rm "$FICHIERVERROUERR"
+
+bash $LOG $UUID $NUMPROG 1 "Fin du programme de mise à jour"

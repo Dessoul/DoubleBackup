@@ -60,3 +60,13 @@ CREATE TABLE liste_fichiers_temporaire (
 	date DATE NULL
 
 ) ENGINE = MyISAM ;
+
+CREATE TABLE log (
+
+	date_modification TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP ,
+	uuid BINARY(16) NOT NULL ,
+	programme TINYINT NOT NULL ,
+	code_message TINYINT NOT NULL ,
+	message VARCHAR(1024) NOT NULL
+
+) ENGINE = ARCHIVE ;

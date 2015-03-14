@@ -20,68 +20,95 @@
 # with this program.  If not, see <http://www.gnu.org/licenses/>.
 # ################################################################################
 
-HOST="-h localhost"
-BDD="gestion_backups_secondaires"
-USER="-u user_gestion_bac"
-PASSWD="-puser_gestion_backup_password"
-SRC="/home/Backup2/SQL/"
-UNITBASH="/home/Backup2/Backup_Unitaire.sh"
+HOST=$(< ./param-host.txt)
+BDD=$(< ./param-base_donnee.txt)
+USER=$(< ./param-user.txt)
+PASSWD=$(< ./param-password.txt)
+SRC=$(< ./param-source.txt)
+
+NUMPROG=2
+UNITBASH="$SRC""Backup_Unitaire.sh"
+LOG="$SRC""Log.sh"
+
+UUID=$(cat /proc/sys/kernel/random/uuid | sed -e "s/-//g")
+
+bash $LOG $UUID $NUMPROG 1 "Date : $(date), Lancement du programme de backup, Nombre d aguments :
 
 if [
 
     echo "Pas assez d'arguments" 1>&2
+    bash $LOG $UUID $NUMPROG 2 "Pas assez d'arguments"
 	exit 1
 fi
 
 if [ "$1" != "file" -a "$1" != "ftp" ]; then
 
     echo "Premier argument incorecte" 1>&2
+    bash $LOG $UUID $NUMPROG 2 "Premier argument incorecte"
 	exit 2
 fi
 
 if [ "$3" != "ftp" ]; then
 
     echo "Deuxieme argument incorecte" 1>&2
+    bash $LOG $UUID $NUMPROG 2 "Deuxieme argument incorecte"
 	exit 3
 fi
 
 FICHIERVERROU="/tmp/verrou"
+FICHIERVERROUERR=$FICHIERVERROU"_error"
 if [ -f $FICHIERVERROU ]; then
     echo "Un programme est deja lancé"
+    bash $LOG $UUID $NUMPROG 1 "Un programme est deja lance"
 	exit 0
 fi
 
-echo "Verrou" > $FICHIERVERROU
-
-echo "Lancement backup global : "$(date)
+echo "" > "$FICHIERVERROU"
+echo "" > "$FICHIERVERROUERR"
 
 TEMPFILE="/tmp/crenau"
 
 if [ -f "$TEMPFILE" ]; then
-    rm "$TEMPFILE"
+    rm "$TEMPFILE" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+    bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 fi
 
-mysql $HOST $USER $PASSWD -e "SELECT COUNT(*) FROM horaires WHERE (DAYOFWEEK(NOW()) + 6) MOD 7 = jour AND NOW() > heure_debut AND NOW() < heure_fin" -D $BDD > $TEMPFILE
+mysql $HOST $USER $PASSWD -e "SELECT COUNT(*) FROM horaires WHERE (DAYOFWEEK(NOW()) + 6) MOD 7 = jour AND NOW() > heure_debut AND NOW() < heure_fin" -D $BDD > $TEMPFILE 2> "$FICHIERVERROUERR"
+bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 
 CRENAU="$(tail -n 1 $TEMPFILE)"
+
+bash $LOG $UUID $NUMPROG 1 "Validité du creneau hortaire : $CRENAU"
 
 RESULTAT=0
 
 while [ "$CRENAU" -gt "0" -a "$RESULTAT" -ne "10" ]
 do
-	bash "$UNITBASH" "$1" "$2" "$3" "$4"
-
+	bash "$UNITBASH" "$1" "$2" "$3" "$4" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
 	RESULTAT=$?
+    bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 
-	rm "$TEMPFILE"
-	mysql $HOST $USER $PASSWD -e "SELECT COUNT(*) FROM horaires WHERE (DAYOFWEEK(NOW()) + 6) MOD 7 = jour AND NOW() > heure_debut AND NOW() < heure_fin" -D $BDD > $TEMPFILE
+	rm "$TEMPFILE" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+    bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+
+	mysql $HOST $USER $PASSWD -e "SELECT COUNT(*) FROM horaires WHERE (DAYOFWEEK(NOW()) + 6) MOD 7 = jour AND NOW() > heure_debut AND NOW() < heure_fin" -D $BDD > $TEMPFILE 2> "$FICHIERVERROUERR"
+    bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+
 	CRENAU="$(tail -n 1 $TEMPFILE)"
 done
 
 if [ -f "$TEMPFILE" ]; then
-    rm "$TEMPFILE"
+    rm "$TEMPFILE" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
+    bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+    bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 fi
 
-echo "Fin backup global : "$(date)
+rm "$FICHIERVERROU"
+rm "$FICHIERVERROUERR"
 
-rm $FICHIERVERROU
+bash $LOG $UUID $NUMPROG 1 "Date : $(date), Fin du programme de backup"
