@@ -32,6 +32,9 @@ LOG="$SRC""Log.sh"
 
 UUID=$(cat /proc/sys/kernel/random/uuid | sed -e "s/-//g")
 
+FILESUSPEND="/tmp/DB_suspend"
+FILEFORCE="/tmp/DB_force"
+
 bash $LOG $UUID $NUMPROG 1 "Date : $(date), Lancement du programme de backup, Nombre d aguments :
 
 if [
@@ -80,6 +83,13 @@ bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 
 CRENAU="$(tail -n 1 $TEMPFILE)"
 
+if [ -f "$FILEFORCE" ]; then
+    CRENAU="1"
+fi
+if [ -f "$FILESUSPEND" ]; then
+    CRENAU="0"
+fi
+
 bash $LOG $UUID $NUMPROG 1 "Validité du creneau hortaire : $CRENAU"
 
 RESULTAT=0
@@ -100,6 +110,13 @@ do
     bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 
 	CRENAU="$(tail -n 1 $TEMPFILE)"
+
+	if [ -f "$FILEFORCE" ]; then
+	    CRENAU="1"
+	fi
+	if [ -f "$FILESUSPEND" ]; then
+	    CRENAU="0"
+	fi
 done
 
 if [ -f "$TEMPFILE" ]; then

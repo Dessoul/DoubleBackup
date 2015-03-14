@@ -25,6 +25,6 @@
 <h3>Backup.sh</h3>
 <p>Realise the double backup</p>
 <p>Arguments : "file"|"ftp" urlSource "file"|"ftp" urlTarget</p>
-<h3>Changer mode de fonctionnement</h3>
+<h3>Changer_mode.sh</h3>
 <p>Modify the working mode of the backup, from stop to full-time, passing by part-time</p>
-<p>Arguments : </p>
+<p>Arguments : "suspend"|"parttime"|"fulltime"  </p>
