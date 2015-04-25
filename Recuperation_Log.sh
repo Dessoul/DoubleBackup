@@ -34,13 +34,29 @@ fi
 
 echo "Creation du ficheir de log"
 
-mysql $HOST $USER $PASSWD -e "SELECT date_modification,HEX(uuid),programme,code_message,message FROM log" -D $BDD > "$TEMPFILE"
+if [
+	echo "Log complet"
+	mysql $HOST $USER $PASSWD -e "SELECT date_modification,HEX(uuid),programme,code_message,message FROM log" -D $BDD > "$TEMPFILE"
+fi
+
+if [
+	echo "Log des $1 derinieres lignes"
+	mysql $HOST $USER $PASSWD -e "SELECT date_modification,HEX(uuid),programme,code_message,message FROM log ORDER BY date_modification DESC LIMIT $1" -D $BDD > "$TEMPFILE"
+fi
 
 echo "Fichier de log créée. Vosu pouvez le consulter : $TEMPFILE"
 
-echo "Appuyez sur entree lorsque vosu avez fini de le consulter"
+echo "Faite 1 pour l'ouvrir avec nano, 2 pour l'afficher dans la console, n'importe quoi d'autre pour fermer"
 
 read A
+
+if [ $A -eq "1" ]; then
+	nano "$TEMPFILE"
+fi
+
+if [ $A -eq "2" ]; then
+	cat "$TEMPFILE"
+fi
 
 if [ -f "$TEMPFILE" ]; then
     rm "$TEMPFILE"

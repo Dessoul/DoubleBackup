@@ -31,6 +31,8 @@ LOG="$SRC""Log.sh"
 
 UUID=$(cat /proc/sys/kernel/random/uuid | sed -e "s/-//g")
 
+DATEFICHIERSUPPR="2999-01-01"
+
 bash $LOG $UUID $NUMPROG 1 "Date : $(date), Lancement du programme de backup unitaire, Nombre d aguments :
 
 if [
@@ -82,6 +84,8 @@ NOMFICHIER="$(tail -n 1 $TEMPFILE)"
 if [ -z "$NOMFICHIER" ]; then
 
 	bash $LOG $UUID $NUMPROG 1 "Aucun fichier a traiter"
+	rm "$FICHIERVERROU"
+	rm "$FICHIERVERROUERR"
 	exit 10
 fi
 
@@ -97,10 +101,23 @@ if [ $1 == "ftp" ]; then
     	bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 	fi
 
+	bash $LOG $UUID $NUMPROG 1 "Rapatriement"
+
 	wget -nv -P "/tmp/" "$2""$NOMFICHIER" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
 	RES=$?
     bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
     bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+
+    if [ $RES -eq "8" ]; then
+
+		bash $LOG $UUID $NUMPROG 1 "Le fichier n'existe plus"
+		mysql $HOST $USER $PASSWD -e "UPDATE liste_fichiers SET date_envoi = '$DATEFICHIERSUPPR' WHERE dossier = '$2' AND fichier = '$NOMFICHIER'" -D $BDD > $FICHIERVERROU  2> "$FICHIERVERROUERR"
+		bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+		bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+		rm "$FICHIERVERROU"
+		rm "$FICHIERVERROUERR"
+		exit 0
+    fi
 
 	if [ $RES -ne "0" ]; then
 
@@ -132,6 +149,17 @@ if [ $3 == "ftp" ]; then
 	fi
 
 	if [ $1 == "file" ]; then
+
+		if [ ! -f "$2""$NOMFICHIER" ]; then
+			bash $LOG $UUID $NUMPROG 1 "Le fichier n'existe plus"
+		    mysql $HOST $USER $PASSWD -e "UPDATE liste_fichiers SET date_envoi = '$DATEFICHIERSUPPR' WHERE dossier = '$2' AND fichier = '$NOMFICHIER'" -D $BDD > $FICHIERVERROU  2> "$FICHIERVERROUERR"
+			bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
+			bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
+			rm "$FICHIERVERROU"
+			rm "$FICHIERVERROUERR"
+			exit 0
+		fi
+
 		wput -nv "$2""$NOMFICHIER" "$4""$NOMFICHIER" > "$FICHIERVERROU" 2> "$FICHIERVERROUERR"
 		RES=$?
     	bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
@@ -169,7 +197,7 @@ if [ -f "$TEMPFILE" ]; then
     bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 fi
 
-mysql $HOST $USER $PASSWD -e "UPDATE liste_fichiers SET date_envoi = NOW() WHERE dossier = '$2' AND fichier = '$NOMFICHIER'" -D $BDD > $TEMPFILE  2> "$FICHIERVERROUERR"
+mysql $HOST $USER $PASSWD -e "UPDATE liste_fichiers SET date_envoi = NOW() WHERE dossier = '$2' AND fichier = '$NOMFICHIER'" -D $BDD > $FICHIERVERROU  2> "$FICHIERVERROUERR"
 bash $LOG $UUID $NUMPROG 1 "$(cat $FICHIERVERROU)"
 bash $LOG $UUID $NUMPROG 2 "$(cat $FICHIERVERROUERR)"
 

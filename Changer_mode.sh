@@ -30,6 +30,7 @@ UUID=$(cat /proc/sys/kernel/random/uuid | sed -e "s/-//g")
 if [
 
     echo "Pas assez d'arguments" 1>&2
+    echo "Les arguments autorisés sont suspend | parttime | fulltime"
     bash $LOG $UUID $NUMPROG 2 "Pas assez d'arguments"
 	exit 1
 fi
@@ -37,6 +38,7 @@ fi
 if [ "$1" != "suspend" -a "$1" != "parttime" -a "$1" != "fulltime" ]; then
 
     echo "Argument incorecte" 1>&2
+    echo "Les arguments autorisés sont suspend | parttime | fulltime"
     bash $LOG $UUID $NUMPROG 2 "Argument incorecte"
 	exit 2
 fi
